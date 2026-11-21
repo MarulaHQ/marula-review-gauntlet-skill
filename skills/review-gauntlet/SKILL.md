@@ -169,7 +169,7 @@ Write the scope card:
 Scope: <n> files, +<add>/-<del>, base <sha>
 Classes: docs(4) rust(2) workflow(1) …
 Passes: 0,1,2,3,4,5,6,9
-Contract: <path-instruction blocks that apply>
+Contract: <repository review rules that apply>
 ```
 
 ## 1. Contract and mechanical
