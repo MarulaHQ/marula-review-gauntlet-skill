@@ -83,11 +83,12 @@ done
 
 if [ "$PRE_REVIEW" -eq 1 ]; then
   PRE_SOURCE="$HOME/.agents/skills/marula-pre-review"
-  [ -d "$PRE_SOURCE" ] || PRE_SOURCE="$HOME/Documents/GitHub/Marula/marula-code-review-skill"
+  [ -d "$PRE_SOURCE" ] || PRE_SOURCE="$HOME/.agents/skills/pre-review"
+  [ -d "$PRE_SOURCE" ] || PRE_SOURCE="$(cd "$REPO/.." && pwd)/marula-code-review-skill"
   if [ -d "$PRE_SOURCE" ]; then
     for dir in "${TARGETS[@]}"; do
-      [ "$dir" = "$CANONICAL" ] && continue
       [ -e "$dir/pre-review" ] && continue
+      [ -e "$dir/marula-pre-review" ] && continue
       if [ "$COPY" -eq 1 ]; then
         cp -R "$PRE_SOURCE" "$dir/pre-review"
         printf '  copied pre-review -> %s\n' "$dir/pre-review"
