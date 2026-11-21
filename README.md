@@ -22,7 +22,11 @@ were read before this one was written.
 
 ## Install
 
+The repository is public: `github.com/MarulaHQ/marula-review-gauntlet-skill`.
+
 ```bash
+git clone https://github.com/MarulaHQ/marula-review-gauntlet-skill
+cd marula-review-gauntlet-skill
 ./deploy.sh
 ```
 
