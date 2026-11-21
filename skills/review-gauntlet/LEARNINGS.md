@@ -15,7 +15,7 @@ gauntlet missed, append one line under the matching class:
 ```
 
 Then do the third-column work: add the check to the pass reference, add a probe
-to `tools/gauntlet.sh`, or narrow the `.coderabbit.yaml` path instruction. An
+to `tools/gauntlet.sh`, or narrow the repository rule that let it through. An
 entry with no action is a diary.
 
 ## Seeded from the 50-PR study (2026-11-21)

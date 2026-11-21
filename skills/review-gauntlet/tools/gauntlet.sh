@@ -9,13 +9,11 @@
 # Nothing here is a verdict. Every hit is a prompt to look, and the exit status
 # is 0 unless --strict is given and a candidate in a blocking class was found.
 #
-# usage: tools/gauntlet.sh [base] [--strict] [--max N] [--pr-body] [--coderabbit]
-#                          [--no-sweep]
+# usage: tools/gauntlet.sh [base] [--strict] [--max N] [--pr-body] [--no-sweep]
 #   base        revision to compare against (default: origin/main, then HEAD~1)
 #   --strict    exit 1 when any candidate is found
 #   --max N     candidates shown per check (default 10)
 #   --pr-body   print a draft PR body with the evidence this script can gather
-#   --coderabbit  run `coderabbit review --agent --gate major --base <base>` when available
 #   --no-sweep  skip the sibling prereview-sweep.sh delegation
 #
 # Scope includes committed branch changes and uncommitted edits to tracked
@@ -27,7 +25,6 @@ BASE=""
 STRICT=0
 MAX=10
 PR_BODY=0
-RUN_CODERABBIT=0
 RUN_SWEEP=1
 
 while [ $# -gt 0 ]; do
@@ -35,9 +32,8 @@ while [ $# -gt 0 ]; do
     --strict) STRICT=1; shift ;;
     --max) shift; MAX="${1:-10}"; shift ;;
     --pr-body) PR_BODY=1; shift ;;
-    --coderabbit) RUN_CODERABBIT=1; shift ;;
     --no-sweep) RUN_SWEEP=0; shift ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) printf 'unknown flag: %s\n' "$1" >&2; exit 2 ;;
     *) BASE="$1"; shift ;;
   esac
@@ -297,39 +293,57 @@ fi
 if [ "$PR_BODY" -eq 1 ]; then
   section "draft PR body"
   subjects=$(git log --format='%s' "$MERGE_BASE..HEAD" 2>/dev/null)
-  bad_subjects=$(printf '%s\n' "$subjects" | grep -vE '^(feat|fix|docs|refactor|test|chore|ci|perf|build|revert)(\([^)]+\))?!?: ' || true)
+  total_commits=$(printf '%s\n' "$subjects" | grep -c . || true)
+  good_subjects=$(printf '%s\n' "$subjects" | grep -cE '^(feat|fix|docs|refactor|test|chore|ci|perf|build|revert)(\([^)]+\))?!?: ' || true)
   trailer_missing=""
+  signed=0
   while IFS= read -r row; do
     [ -z "$row" ] && continue
-    if [ -z "${row##*| }" ]; then trailer_missing="$trailer_missing$row"$'\n'; fi
+    if [ -z "${row##*| }" ]; then trailer_missing="$trailer_missing$row"$'\n'; else signed=$((signed + 1)); fi
   done < <(git log --format='%h| %(trailers:key=Signed-off-by,valueonly)' "$MERGE_BASE..HEAD" 2>/dev/null)
-  fragment=$(printf '%s\n' "$FILES" | grep -c '^release-notes/unreleased/' || true)
-  new_tables=$(git diff "$MERGE_BASE" -- crates/core-db/migrations 2>/dev/null | grep -cE '^\+.*CREATE TABLE' || true)
+  has_notes_tree=0
+  [ -d release-notes/unreleased ] && has_notes_tree=1
+  fragment=0
+  [ "$has_notes_tree" -eq 1 ] && fragment=$(printf '%s\n' "$FILES" | grep -c '^release-notes/unreleased/' || true)
+  migrations_dir=""
+  for candidate in crates/core-db/migrations migrations db/migrations; do
+    [ -d "$candidate" ] && migrations_dir=$candidate && break
+  done
+  new_tables=0
+  if [ -n "$migrations_dir" ]; then
+    new_tables=$(git diff "$MERGE_BASE" -- "$migrations_dir" 2>/dev/null | grep -cE '^\+.*CREATE TABLE' || true)
+  fi
 
   printf '## What this changes\n\n'
   printf '<one or two sentences; link the issue if there is one>\n\n'
   printf '## Checklist\n\n'
-  if [ -z "$trailer_missing" ]; then
-    printf -- '- [x] Every commit is signed off per the DCO, and the trailer matches the author.\n'
-  else
-    printf -- '- [ ] DCO: missing or unreadable trailer on these commits — %s\n' "$(printf '%s' "$trailer_missing" | awk -F'|' '{printf "%s ", $1}')"
+  if [ "${total_commits:-0}" -gt 0 ] && [ "$signed" -gt 0 ]; then
+    if [ -z "$trailer_missing" ]; then
+      printf -- '- [x] Every commit is signed off per the DCO, and the trailer matches the author.\n'
+    else
+      printf -- '- [ ] DCO: missing or unreadable trailer on these commits — %s\n' "$(printf '%s' "$trailer_missing" | awk -F'|' '{printf "%s ", $1}')"
+    fi
   fi
-  if [ -z "$bad_subjects" ]; then
-    printf -- '- [x] Conventional commit subjects.\n'
-  else
-    printf -- '- [ ] Conventional subjects: %s\n' "$(printf '%s' "$bad_subjects" | tr '\n' ';')"
+  if [ "${good_subjects:-0}" -gt 0 ]; then
+    if [ "$good_subjects" -eq "${total_commits:-0}" ]; then
+      printf -- '- [x] Conventional commit subjects.\n'
+    else
+      printf -- '- [ ] Conventional subjects: %s\n' "$(printf '%s\n' "$subjects" | grep -vE '^(feat|fix|docs|refactor|test|chore|ci|perf|build|revert)(\([^)]+\))?!?: ' | tr '\n' ';')"
+    fi
   fi
-  if [ "$fragment" -gt 0 ]; then
-    printf -- '- [x] Release-note fragment present.\n'
-  else
-    printf -- '- [ ] Changelog: add a fragment with `node scripts/release-note.mjs add ...`, or say why no user-visible change.\n'
+  if [ "$has_notes_tree" -eq 1 ]; then
+    if [ "$fragment" -gt 0 ]; then
+      printf -- '- [x] Release-note fragment present.\n'
+    else
+      printf -- '- [ ] Changelog: add a fragment with `node scripts/release-note.mjs add ...`, or say why no user-visible change.\n'
+    fi
   fi
-  printf -- '- [ ] No raw hex outside `packages/ui`; clippy and tsc results stated (checked / not applicable — reason).\n'
   if [ "$new_tables" -gt 0 ]; then
-    printf -- '- [ ] New user-data table(s) in the migration diff: confirm `org_id` and an RLS policy.\n'
-  else
-    printf -- '- [x] New user-data tables: none in this diff.\n'
+    printf -- '- [ ] New table(s) in the migration diff: confirm the tenant/owner column and an access policy.\n'
+  elif [ -n "$migrations_dir" ]; then
+    printf -- '- [x] New tables: none in this diff.\n'
   fi
+  printf -- '- [ ] Gates: typecheck, lint and tests stated (checked / not applicable — reason).\n'
   exit 0
 fi
 
@@ -363,29 +377,10 @@ if command -v gh >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. The oracle.
+# 5. External reviewer.
 # ---------------------------------------------------------------------------
-section "external oracle"
-ORACLE_BASE=${BASE#origin/}
-if [ "$RUN_CODERABBIT" -eq 1 ]; then
-  if command -v coderabbit >/dev/null 2>&1; then
-    printf 'running: coderabbit review --agent --committed --deep --gate major --base %s\n' "$ORACLE_BASE"
-    printf '(exit 2 = blocking finding, exit 1 = incomplete review, 0 = gate passed)\n\n'
-    coderabbit review --agent --committed --deep --gate major --base "$ORACLE_BASE"
-    rc=$?
-    case "$rc" in
-      0) printf '\n  gate: passed\n' ;;
-      2) add 1; printf '\n  gate: BLOCKED — findings at or above major\n' ;;
-      *) add 1; printf '\n  gate: INCOMPLETE (exit %s) — this is not a clean result\n' "$rc" ;;
-    esac
-  else
-    printf '  coderabbit CLI not installed; run `coderabbit review --agent --gate major --base %s` once it is\n' "$ORACLE_BASE"
-  fi
-else
-  printf '  not run. Before a push:\n'
-  printf '    coderabbit review --agent --uncommitted --base %s\n' "$ORACLE_BASE"
-  printf '    coderabbit review --agent --committed --deep --gate major --base %s\n' "$ORACLE_BASE"
-fi
+section "external reviewer"
+printf '  not applicable. This skill is local; a repository overlay may add one.\n'
 
 printf '\n%d candidate(s). None of these is a verdict: read each one.\n' "$TOTAL"
 if [ "$STRICT" -eq 1 ] && [ "$TOTAL" -gt 0 ]; then

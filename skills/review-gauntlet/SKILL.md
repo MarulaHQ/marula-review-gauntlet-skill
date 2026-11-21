@@ -1,6 +1,6 @@
 ---
 name: review-gauntlet
-description: Run a diff through every review pass before it is pushed — contract and mechanical, correctness and state, logic and pitfalls, security (Cloudflare security-audit in guidance mode), docs and claims, infrastructure (CI, shell, Helm, Docker), and frontend — then fix what survives verification and re-run until a full cycle finds nothing new. Use before every push or pull request, and whenever the user says "review gauntlet", "review until clean", "pre-push review", "why does CodeRabbit keep finding things", "review this branch end to end", or asks to close the gap between local review and the external PR review.
+description: Run a diff through every review pass before it is pushed — contract and mechanical, correctness and state, logic and pitfalls, security (Cloudflare security-audit in guidance mode), docs and claims, infrastructure (CI, shell, Helm, Docker), and frontend — then fix what survives verification and re-run until a full cycle finds nothing new. Use before every push or pull request, and whenever the user says "review gauntlet", "review until clean", "pre-push review", "why does the external reviewer keep finding things", "review this branch end to end", or asks to close the gap between local review and the external PR review.
 license: MIT
 compatibility: opencode
 ---
@@ -11,7 +11,12 @@ Run this before a push. It is the pre-review gate run as a loop: every applicabl
 pass, then fix, then every pass again, until a full cycle finds nothing.
 
 The measure of success is not a clean report. It is that the next external
-review, meaning CodeRabbit on the pull request, has nothing left to say.
+review has nothing left to say.
+
+This skill is local. It calls no external service and needs no account. If the
+repository ships a review overlay, load that instead: Marula Core has
+`marula-review-gauntlet`, which runs this loop and adds the repository's external
+reviewer.
 
 `pre-review` is **pass 1 of this skill**, not a rival to it. Load it if it is
 installed. If it is not, read the installed copy at
@@ -28,9 +33,9 @@ was unavailable, so the report does not claim a pass that did not run.
 
 ## Why the loop keeps running
 
-Across the last 50 merged pull requests in `marula-core`, CodeRabbit posted 248
-substantive findings and failed the description check on half the PRs. Two
-numbers explain most of the cost:
+Across the last 50 merged pull requests in `marula-core`, the external reviewer
+posted 248 substantive findings and failed the description check on half the
+PRs. Two numbers explain most of the cost:
 
 - **232 of 248 were "Quick win"** — mechanical or local, not design problems.
 - **86 were on documentation and prose**, 65 on scripts/CI/Helm, 34 on frontend,
@@ -48,9 +53,10 @@ write. Pass 3 exists for that, and it is the one pass you must not skip because
 ## Five laws
 
 1. **The contract first.** Read the rules that already exist for the paths in the
-   diff before reading the diff: `.coderabbit.yaml` path instructions,
-   `CONTRIBUTING.md`, `AGENTS.md`, `SECURITY.md`, module headers, the PR
-   template. Most external comments quote a rule the repository already wrote.
+   diff before reading the diff: the repository's review instructions (a
+   `.coderabbit.yaml` when it has one), `CONTRIBUTING.md`, `AGENTS.md`,
+   `SECURITY.md`, module headers, the PR template. Most external comments quote
+   a rule the repository already wrote.
 2. **Fix the class, not the line.** One unencoded id in one page means the same
    shape in its siblings. A report that lists five instances of one habit is a
    failed sweep, not thoroughness.
@@ -78,7 +84,7 @@ write. Pass 3 exists for that, and it is the one pass you must not skip because
 | 7 | **Frontend** (langgenius `frontend-code-review` + `pre-review` B) | UI state holds, focus order holds, failure states render |
 | 8 | **Fix** | one commit per class, verified |
 | 9 | **Re-review** | a full cycle over the new diff; prior findings checked for regression |
-| 10 | **Oracle** | CodeRabbit CLI run locally, or the exact command recorded |
+| 10 | **External reviewer** | the repository's own, or "not applicable" |
 | 11 | **PR body** | every template item answered with evidence |
 | 12 | **Report** | fixed, swept, open, declined, not verified |
 
@@ -128,7 +134,7 @@ The loop reads the diff more than once, so the diff is the budget.
 - **Cycle 2 and later review the fix diff.** `git diff <lastReviewedSha>`, not
   the branch. A pass with no changed files is skipped, not re-run.
 - **Read the contract once.** The orchestrator passes a short digest; ten
-  reviewers reading `.coderabbit.yaml` and `AGENTS.md` is ten copies of the same
+  reviewers reading the repository's contract files is ten copies of the same
   text.
 - **Cap handoff payloads.** Evidence and suggestion reach the verifier at about
   1200 characters. The full text stays in state.
@@ -359,39 +365,22 @@ Cap the loop at **three cycles**. If the third cycle is still producing new
 classes, stop and report: that is a design problem, not a review problem, and
 another cycle will not settle it. Report the residual findings and the pattern.
 
-## 10. The oracle
+## 10. External reviewer
 
-The external reviewer is the only opinion that matters, so run it locally when
-you can.
+This skill is local and does not call one. Some repositories have an external
+reviewer that can run locally: a CI check, a service CLI, or an overlay skill.
+Only the repository's own instructions can add it, and only there is it part of
+the loop.
 
-```bash
-# during the loop: cheap, incremental, uncommitted scope
-coderabbit review --agent --uncommitted --base <the branch the PR targets>
+- If the repository ships an overlay, it owns this step. Marula Core has
+  `marula-review-gauntlet`, which runs this loop and then its own reviewer.
+- If the repository's `AGENTS.md` names a local external-review command, run it
+  after the local passes and treat its exit codes as documented there.
+- Otherwise write "not applicable" under "External reviewer" in the report. Do
+  not install, authenticate, or send the diff to a service on your own.
 
-# before the push: PR-policy parity on the branch
-coderabbit review --agent --committed --deep --gate major --base <the branch the PR targets>
-```
-
-Pass `--base`. Without it the CLI uses its own default, which is `main`, so a
-PR to a release branch reviews a different diff.
-
-`--deep` uses the pull-request review policy; `--gate major` exits `2` when a
-major or critical finding remains. The repository's `.coderabbit.yaml` applies
-locally, including `path_instructions`, so the local run is the same contract.
-
-Read the result honestly:
-
-- Exit `1` means the review was incomplete, not clean. Check `outcome` and
-  `unreviewedFileCount`; findings you received do not prove the whole diff was
-  read.
-- `reused: true` makes the gate incomplete. A reused result is not a new review.
-- `review_skipped` with zero findings means no analysis ran. It is not a pass.
-- Fix what it finds, then re-run once. Two local runs are usually the budget;
-  the hourly limit is shared with the pull request.
-
-If the CLI is not installed or not authenticated, do not substitute a guess.
-Record the exact command under "Not verified" and say the oracle did not run.
-Install and authenticate is the user's decision, not the agent's.
+Never let an external reviewer replace the local passes. It is a second opinion
+on the final diff, not a substitute for reading it.
 
 ## 11. PR body
 
@@ -423,8 +412,8 @@ Short, and only claims you can support.
 Gauntlet: <N> fixed, <M> open, <K> declined, <C> cycles
 Scope: <n> files (+<add>/-<del>), base <sha>
 Passes run: 0,1,2,3,4,5,6  (skipped: 7 — no UI files)
-Contract: <.coderabbit.yaml blocks applied, or "none">
-Oracle: coderabbit <command> — <findings by severity, or "not installed">
+Contract: <repository rules applied, or "none">
+External reviewer: <command and result, or "not applicable">
 
 Fixed
 - [critical|major|minor] <file>:<line> — <what was wrong> -> <what changed> (<verification>)
@@ -458,7 +447,7 @@ the pull request despite the gauntlet, append one line under the class it
 belongs to: what it was, the file, and which pass should have caught it. When a
 class repeats three times, the fix is a rule, not more care: add the check to
 the pass reference, add a mechanical probe to `tools/gauntlet.sh`, or narrow the
-`.coderabbit.yaml` path instruction so the disagreement is settled in public
+review rule so the disagreement is settled in public
 once.
 
 Do not let the ledger become a diary. One line per class, dated. If an entry has

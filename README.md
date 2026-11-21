@@ -1,28 +1,26 @@
-# review-gauntlet
+# Review gauntlets
 
-An agent skill for closing the gap between local review and the external pull
-request review. It runs the `pre-review` gate as pass 1, adds the correctness pass,
-the logic pass, the security pass, the claims pass, the infrastructure pass and
-the frontend pass, fixes what survives verification, and re-runs until a full
-cycle finds nothing.
+Two agent skills. The portable one runs every local review pass and calls no
+external service. The Marula overlay adds the CodeRabbit oracle for Marula Core
+pull requests.
 
-The measure of success is that CodeRabbit has nothing left to say when the pull
-request opens.
+| Skill | Use |
+| --- | --- |
+| `skills/review-gauntlet` | Any repository. Local only. |
+| `skills/marula-review-gauntlet` | `MarulaHQ` repositories only. Runs the portable loop, then CodeRabbit. |
 
 ## Why
 
-Across the last 50 merged pull requests in `marula-core`, CodeRabbit posted 248
-substantive findings and failed the description check on half the PRs. 232 of
-those findings were "quick win", and 86 were prose. The cost was not hard code.
-It was cheap, artifact-shaped defects being found by the external reviewer
-instead of locally.
+Across the last 50 merged pull requests in `marula-core`, the external reviewer
+posted 248 substantive findings and failed the description check on half the
+PRs. 232 of those findings were "quick win", and 86 were prose. The cost was
+cheap, artifact-shaped defects being found by the external reviewer instead of
+locally.
 
-`RESEARCH.md` holds the full breakdown and the evaluation of the 19 skills that
-were read before this one was written.
+`skills/review-gauntlet/RESEARCH.md` holds the full breakdown and the evaluation
+of the 19 skills that were read before this one was written.
 
 ## Install
-
-The repository is public: `github.com/MarulaHQ/marula-review-gauntlet-skill`.
 
 ```bash
 git clone https://github.com/MarulaHQ/marula-review-gauntlet-skill
@@ -30,54 +28,44 @@ cd marula-review-gauntlet-skill
 ./deploy.sh
 ```
 
-The script links this checkout into `~/.agents/skills/review-gauntlet` and into
-every other agent skills directory it finds: `~/.claude`, `~/.codex`,
-`~/.cursor`, `~/.gemini`, `~/.copilot`, `~/.config/opencode`. `--copy` copies
-instead of linking. `--no-pre-review` skips the companion `pre-review` link.
+The script links both skills into `~/.agents/skills` and into every other agent
+skills directory it finds: `~/.claude`, `~/.codex`, `~/.cursor`, `~/.gemini`,
+`~/.copilot`, `~/.config/opencode`. `--copy` copies instead of linking.
+`--no-pre-review` skips the companion `pre-review` link.
 
 A manual install is the same two lines:
 
 ```bash
 mkdir -p ~/.agents/skills
-ln -sfn "$PWD" ~/.agents/skills/review-gauntlet
+ln -sfn "$PWD/skills/review-gauntlet" ~/.agents/skills/review-gauntlet
+ln -sfn "$PWD/skills/marula-review-gauntlet" ~/.agents/skills/marula-review-gauntlet
 ```
 
 ## Use
 
 Ask the agent to "run the review gauntlet", "review until clean", or "pre-push
-review". The skill triggers on a diff, a branch, or a pull request body that
-needs finishing.
-
-Before a push, the external oracle is the CodeRabbit CLI:
-
-```bash
-coderabbit review --agent --uncommitted --base <target>          # during the loop
-coderabbit review --agent --committed --deep --gate major --base <target>
-```
-
-`--base` is the branch the pull request targets. Without it the CLI compares
-against `main`, which is the wrong diff for a PR to a release branch.
-
-Exit `2` means a blocking finding remains. Exit `1` means the review was
-incomplete, not clean.
+review". In a MarulaHQ repository, its `AGENTS.md` routes to the overlay, which
+also runs the CodeRabbit oracle. Anywhere else, use the portable skill; do not
+load the overlay, because it sends the diff to a third-party service.
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `SKILL.md` | The loop: preflight, seven passes, fix, re-review, oracle, PR body, report |
-| `references/logic-pitfalls.md` | Invariant ledger, return paths, bug-report test, failure injection, concurrency, config matrix |
-| `references/docs-claims.md` | A runbook is a program; claim equals code |
-| `references/infra-pitfalls.md` | Workflows, shell, Helm, images |
-| `references/pr-contract.md` | The description check |
-| `references/coderabbit-path-instructions.md` | Proposed path instructions for the classes `.coderabbit.yaml` does not cover |
-| `tools/gauntlet.sh` | Mechanical preflight: dead links and paths, ghost env vars, lint, chart render, PR body |
-| `LEARNINGS.md` | Ledger of misses and the pass that owed them |
+| `skills/review-gauntlet/SKILL.md` | The portable loop: preflight, seven passes, fix, re-review, report |
+| `skills/review-gauntlet/references/logic-pitfalls.md` | Invariant ledger, return paths, bug-report test, failure injection, concurrency, config matrix |
+| `skills/review-gauntlet/references/docs-claims.md` | A runbook is a program; claim equals code |
+| `skills/review-gauntlet/references/infra-pitfalls.md` | Workflows, shell, Helm, images |
+| `skills/review-gauntlet/references/pr-contract.md` | The description check |
+| `skills/review-gauntlet/references/coderabbit-path-instructions.md` | Proposed path instructions for Marula's `.coderabbit.yaml` |
+| `skills/review-gauntlet/tools/gauntlet.sh` | Mechanical preflight: dead links and paths, ghost env vars, lint, chart render, PR body |
+| `skills/review-gauntlet/LEARNINGS.md` | Ledger of misses and the pass that owed them |
+| `skills/marula-review-gauntlet/SKILL.md` | The CodeRabbit oracle and the Marula contract, run after the portable loop |
 
 ## Dependencies
 
-The skill loads these when the agent has them installed. It vendors none of
-them, so there is one source of truth for each:
+The portable skill loads these when the agent has them installed. It vendors
+none of them, so there is one source of truth for each:
 
 - `pre-review` for pass 1. Install the companion from
   `../marula-code-review-skill` or let `deploy.sh` link it.
@@ -85,6 +73,9 @@ them, so there is one source of truth for each:
 - langgenius `frontend-code-review` for pass 7.
 - `receiving-code-review` and `verification-before-completion` for the fix pass.
 - The `trail` tools for call sites and file APIs, ahead of grep.
+
+The Marula overlay additionally needs the CodeRabbit CLI, authenticated, and is
+only for a repository that already uses CodeRabbit.
 
 ## License
 

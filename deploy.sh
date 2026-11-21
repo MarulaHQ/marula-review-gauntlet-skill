@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# deploy.sh - link review-gauntlet into every agent skills directory found here.
+# deploy.sh - link every skill in this repository into the agent skill dirs.
 #
 # usage: ./deploy.sh [--copy] [--no-pre-review]
-#   --copy             copy the skill instead of linking it
+#   --copy             copy the skills instead of linking them
 #   --no-pre-review    do not link the companion pre-review skill
 #
-# The canonical copy lives at ~/.agents/skills/review-gauntlet. Every other
-# agent directory points at it, so an edit in this checkout reaches them all.
+# The canonical copies live at ~/.agents/skills/<name>. Every other agent
+# directory points at them, so an edit in this checkout reaches them all.
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-NAME="review-gauntlet"
 CANONICAL="$HOME/.agents/skills"
 COPY=0
 PRE_REVIEW=1
@@ -21,7 +20,7 @@ for arg in "$@"; do
     --copy) COPY=1 ;;
     --no-pre-review) PRE_REVIEW=0 ;;
     -h|--help)
-      sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -51,8 +50,8 @@ backup() {
   local cache="$HOME/.cache/review-gauntlet-backups"
   local saved
   mkdir -p "$cache"
-  saved="$cache/$(basename "$(dirname "$target")")-$(date +%Y%m%d%H%M%S)"
-  mv "$target" "$saved"
+  saved=$(mktemp -d "$cache/backup.XXXXXX")
+  mv "$target" "$saved/$(basename "$target")"
   printf '  moved existing %s -> %s\n' "$target" "$saved"
 }
 
@@ -72,13 +71,24 @@ install_skill() {
   printf '  link   %s -> %s\n' "$target" "$source"
 }
 
-for dir in "${TARGETS[@]}"; do
-  printf '%s\n' "$dir"
-  if [ "$dir" = "$CANONICAL" ]; then
-    install_skill "$dir/$NAME" "$REPO"
-  else
-    install_skill "$dir/$NAME" "$CANONICAL/$NAME"
-  fi
+shopt -s nullglob
+SKILL_DIRS=("$REPO"/skills/*/)
+shopt -u nullglob
+
+if [ "${#SKILL_DIRS[@]}" -eq 0 ]; then
+  printf 'no skills found under %s/skills\n' "$REPO" >&2
+  exit 1
+fi
+
+for skill in "${SKILL_DIRS[@]}"; do
+  name=$(basename "$skill")
+  [ -f "$skill/SKILL.md" ] || continue
+  printf '%s\n' "$name"
+  install_skill "$CANONICAL/$name" "$skill"
+  for dir in "${TARGETS[@]}"; do
+    [ "$dir" = "$CANONICAL" ] && continue
+    install_skill "$dir/$name" "$CANONICAL/$name"
+  done
 done
 
 if [ "$PRE_REVIEW" -eq 1 ]; then
@@ -102,4 +112,4 @@ if [ "$PRE_REVIEW" -eq 1 ]; then
   fi
 fi
 
-printf '\nreview-gauntlet deployed. Reload or restart the agent to pick it up.\n'
+printf '\nskills deployed. Reload or restart the agent to pick them up.\n'

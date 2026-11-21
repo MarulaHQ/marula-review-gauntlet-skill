@@ -129,31 +129,21 @@ pass points at it without copying.
 - **A second generic code checklist.** There are already three in the workspace.
   More checklists correlate with less review, not more.
 
-## Why the CodeRabbit CLI is the lever
+## The external reviewer is the measure
 
-The CLI runs the same pattern recognition as the pull-request review, reads the
-repository's `.coderabbit.yaml` (including `path_instructions`), and can gate on
-severity:
+Every finding above arrived after the push. The local passes are the ones that
+must catch them, because the external reviewer is a second opinion on the final
+diff, not a substitute for reading it.
 
-```bash
-coderabbit review --agent --uncommitted --base <the branch the PR targets>
-coderabbit review --agent --committed --deep --gate major --base <the branch the PR targets>
-```
+Some repositories can run their external reviewer locally, and that is the only
+way to know before the push whether it will find anything. This skill does not:
+it is local, it calls no service, and it needs no account. A repository that can
+mirror its reviewer ships an overlay for it. Marula Core's overlay is
+`marula-review-gauntlet`, and its reference holds the CLI contract, the exit
+codes and the allowance budget.
 
-That is the only way to know, before the push, whether the external reviewer
-will find anything. The measured difference matters: the local run is cheaper
-and incremental, while `--deep` uses the pull-request policy.
-
-Limits to respect, from the vendor's documentation:
-
-- CLI reviews are not identical to PR reviews. They optimise for local feedback.
-  Treat a clean CLI as strong evidence, not proof.
-- Exit `1` is an **incomplete** review, not a clean one. Check `outcome` and
-  `unreviewedFileCount`.
-- `reused: true` makes a gate incomplete. It is not a fresh result.
-- `review_skipped` with zero findings means no analysis ran.
-- `--gate` requests a fresh full-diff review, so it costs more allowance than an
-  incremental run. Two local runs per PR is a sensible budget.
+A repository with no external reviewer has nothing to mirror, and its diff
+should never be sent to a third-party service.
 - The rate limit is shared with the pull-request review. Burning it locally can
   delay the review everyone else is waiting on.
 
@@ -166,14 +156,16 @@ Limits to respect, from the vendor's documentation:
 - **Product judgement.** A finding that needs a decision stays open at its real
   severity. The loop stops at "nothing left to fix", not "nothing left to
   discuss".
-- **The external reviewer's learnings.** CodeRabbit folds explanations from PR
-  replies into later reviews. A convention recorded only locally will be
-  re-litigated in public. That is why a declined finding names where its reason
+- **The external reviewer's learnings.** A reviewer that folds explanations from
+  PR replies into later reviews will re-litigate a convention recorded only
+  locally. That is why a declined finding names where its reason
   lives, and why a third repeat is a config change rather than another argument.
 
 ## Recommended repository changes
 
-These are proposals, not applied here.
+These apply to the repository studied, `marula-core`, and the overlay's
+`references/coderabbit-path-instructions.md` holds the concrete text. Nothing
+here is applied by this skill.
 
 1. **Path instructions for the artifact classes that dominate.** The current
    `.coderabbit.yaml` covers Rust, migrations, web, UI, event fixtures and
@@ -202,7 +194,7 @@ These are proposals, not applied here.
 | Metric | Now | Target |
 | --- | --- | --- |
 | PRs failing the description check | 50% | 0 |
-| Median CodeRabbit findings per PR | ~5 (mean 5.0) | ≤ 2 |
+| Median external-reviewer findings per PR | ~5 (mean 5.0) | ≤ 2 |
 | Review cycles per PR | unknown (not instrumented) | 1 |
 | Findings per artifact class | see table | track the top three |
 
