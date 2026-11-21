@@ -15,7 +15,7 @@
 #   --strict    exit 1 when any candidate is found
 #   --max N     candidates shown per check (default 10)
 #   --pr-body   print a draft PR body with the evidence this script can gather
-#   --coderabbit  run `coderabbit review --agent --gate major` when available
+#   --coderabbit  run `coderabbit review --agent --gate major --base <base>` when available
 #   --no-sweep  skip the sibling prereview-sweep.sh delegation
 #
 # Scope includes committed branch changes and uncommitted edits to tracked
@@ -366,11 +366,12 @@ fi
 # 5. The oracle.
 # ---------------------------------------------------------------------------
 section "external oracle"
+ORACLE_BASE=${BASE#origin/}
 if [ "$RUN_CODERABBIT" -eq 1 ]; then
   if command -v coderabbit >/dev/null 2>&1; then
-    printf 'running: coderabbit review --agent --committed --deep --gate major\n'
+    printf 'running: coderabbit review --agent --committed --deep --gate major --base %s\n' "$ORACLE_BASE"
     printf '(exit 2 = blocking finding, exit 1 = incomplete review, 0 = gate passed)\n\n'
-    coderabbit review --agent --committed --deep --gate major
+    coderabbit review --agent --committed --deep --gate major --base "$ORACLE_BASE"
     rc=$?
     case "$rc" in
       0) printf '\n  gate: passed\n' ;;
@@ -378,12 +379,12 @@ if [ "$RUN_CODERABBIT" -eq 1 ]; then
       *) add 1; printf '\n  gate: INCOMPLETE (exit %s) — this is not a clean result\n' "$rc" ;;
     esac
   else
-    printf '  coderabbit CLI not installed; run `coderabbit review --agent --gate major` once it is\n'
+    printf '  coderabbit CLI not installed; run `coderabbit review --agent --gate major --base %s` once it is\n' "$ORACLE_BASE"
   fi
 else
   printf '  not run. Before a push:\n'
-  printf '    coderabbit review --agent --uncommitted          # during the loop\n'
-  printf '    coderabbit review --agent --committed --deep --gate major\n'
+  printf '    coderabbit review --agent --uncommitted --base %s\n' "$ORACLE_BASE"
+  printf '    coderabbit review --agent --committed --deep --gate major --base %s\n' "$ORACLE_BASE"
 fi
 
 printf '\n%d candidate(s). None of these is a verdict: read each one.\n' "$TOTAL"

@@ -136,8 +136,8 @@ repository's `.coderabbit.yaml` (including `path_instructions`), and can gate on
 severity:
 
 ```bash
-coderabbit review --agent --uncommitted
-coderabbit review --agent --committed --deep --gate major
+coderabbit review --agent --uncommitted --base <the branch the PR targets>
+coderabbit review --agent --committed --deep --gate major --base <the branch the PR targets>
 ```
 
 That is the only way to know, before the push, whether the external reviewer

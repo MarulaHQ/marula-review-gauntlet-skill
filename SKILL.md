@@ -366,11 +366,14 @@ you can.
 
 ```bash
 # during the loop: cheap, incremental, uncommitted scope
-coderabbit review --agent --uncommitted
+coderabbit review --agent --uncommitted --base <the branch the PR targets>
 
 # before the push: PR-policy parity on the branch
-coderabbit review --agent --committed --deep --gate major
+coderabbit review --agent --committed --deep --gate major --base <the branch the PR targets>
 ```
+
+Pass `--base`. Without it the CLI uses its own default, which is `main`, so a
+PR to a release branch reviews a different diff.
 
 `--deep` uses the pull-request review policy; `--gate major` exits `2` when a
 major or critical finding remains. The repository's `.coderabbit.yaml` applies

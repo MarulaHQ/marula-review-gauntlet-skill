@@ -47,9 +47,12 @@ needs finishing.
 Before a push, the external oracle is the CodeRabbit CLI:
 
 ```bash
-coderabbit review --agent --uncommitted          # during the loop
-coderabbit review --agent --committed --deep --gate major
+coderabbit review --agent --uncommitted --base <target>          # during the loop
+coderabbit review --agent --committed --deep --gate major --base <target>
 ```
+
+`--base` is the branch the pull request targets. Without it the CLI compares
+against `main`, which is the wrong diff for a PR to a release branch.
 
 Exit `2` means a blocking finding remains. Exit `1` means the review was
 incomplete, not clean.
