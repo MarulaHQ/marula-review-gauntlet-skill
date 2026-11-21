@@ -14,9 +14,11 @@ The measure of success is not a clean report. It is that the next external
 review, meaning CodeRabbit on the pull request, has nothing left to say.
 
 `pre-review` is **pass 1 of this skill**, not a rival to it. Load it if it is
-installed; otherwise read the copy beside this file at
-`../marula-pre-review/SKILL.md`. This skill adds the passes that the repository's
-own review history says are missing, the fix discipline, and the stop rule.
+installed. If it is not, read the installed copy at
+`~/.agents/skills/marula-pre-review/SKILL.md`, or the copy beside this file at
+`../marula-pre-review/SKILL.md`. This skill adds the passes that the
+repository's own review history says are missing, the fix discipline, and the
+stop rule.
 
 If neither the installed skill nor the sibling copy exists, run pass 1 from this
 file: read the contract files that exist, apply the contract classes in passes 2,
@@ -174,8 +176,8 @@ Then run the mechanical half, from the skill directory
 
 ```bash
 tools/gauntlet.sh origin/main
-# and, when the pre-review skill sits beside this one:
-../marula-pre-review/tools/prereview-sweep.sh origin/main
+# the pre-review sweep, when that skill is installed:
+~/.agents/skills/marula-pre-review/tools/prereview-sweep.sh origin/main
 ```
 
 `gauntlet.sh` adds the checks `prereview-sweep.sh` does not cover: PR body
@@ -244,7 +246,7 @@ Load Cloudflare `security-audit` in **guidance mode** and review the hunks that
 cross a trust boundary. Guidance mode only: no six-phase audit, no audit
 directory, no live endpoints or production identities. If the skill is not
 installed, read the vendored copy at
-`../marula-pre-review/vendor/security-audit/SKILL.md`.
+`~/.agents/skills/marula-pre-review/vendor/security-audit/SKILL.md`.
 
 Scope the pass to: authentication and sessions, authorization on every path,
 tenant scoping, untrusted input, query construction, secrets and comparison,

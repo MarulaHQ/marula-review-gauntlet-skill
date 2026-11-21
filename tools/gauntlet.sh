@@ -96,11 +96,20 @@ fi
 # ---------------------------------------------------------------------------
 if [ "$RUN_SWEEP" -eq 1 ] && [ "$PR_BODY" -eq 0 ]; then
   SWEEP=""
+  # `..` after a symlinked skill resolves to the checkout's parent, not the
+  # skills directory, so strip the path textually instead of walking through it.
+  TOOLS_DIR=$(cd -L "$(dirname "$0")" >/dev/null 2>&1 && pwd -L)
+  SKILL_DIR=${TOOLS_DIR%/tools}
+  SKILLS_DIR=${SKILL_DIR%/*}
   for candidate in \
-    "$(dirname "$0")/../../marula-pre-review/tools/prereview-sweep.sh" \
-    "$(dirname "$0")/prereview-sweep.sh"
+    "${GAUNTLET_PRE_REVIEW:-}" \
+    "$SKILLS_DIR/marula-pre-review/tools/prereview-sweep.sh" \
+    "$SKILLS_DIR/pre-review/tools/prereview-sweep.sh" \
+    "$SKILLS_DIR/marula-code-review-skill/tools/prereview-sweep.sh" \
+    "$HOME/.agents/skills/marula-pre-review/tools/prereview-sweep.sh" \
+    "$TOOLS_DIR/prereview-sweep.sh"
   do
-    if [ -f "$candidate" ]; then SWEEP="$candidate"; break; fi
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then SWEEP="$candidate"; break; fi
   done
   if [ -n "$SWEEP" ]; then
     section "pre-review sweep"
